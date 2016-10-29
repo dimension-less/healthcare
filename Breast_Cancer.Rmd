@@ -8,23 +8,48 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
+### Objective 
+In an almost universal paradigm, the CAD problem is addressed by a 4 stage system:
 
-## R Markdown
-
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
-
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r cars}
-summary(cars)
+1)Candidate generation which identifies suspicious unhealthy candidate regions of interest (candidate ROIs, or simply candidates) from a medical image;
+2) Feature extraction which computes descriptive features for each candidate so that each candidate is represented by a vector x of numerical values or attributes;
+classification which differentiates candidates that are malignant cancers from the rest of the candidates based on x; and
+visual presentation of CAD findings to the radiologist.
+In this challenge, we focus on stage 3, learning the classifier to differentiate malignant cancers from other candidates.
+### Importing the data from "Breast Cancer Info"
+```{r Importing}
+info<-read.table("Breast Cancer Info.tsv",header = F,sep = "\t")
+info$V12<-NULL
+col_names<-c("label","image-finding-id","study-finding-id","image-id","patient-id","leftbreast","MLO","x-location","y-location","x-nipple-location","y-nipple-location")
+colnames(info)<-col_names
+# Importing features file
+features<-read.delim("Features.txt",header = F)
+features$V118<-NULL
 ```
-
-## Including Plots
-
-You can also embed plots, for example:
-
-```{r pressure, echo=FALSE}
-plot(pressure)
+### Exploring the data
+```{r Exploration}
+str(info)
+table(info$label)
+table(info$`image-finding-id`)
+table((subset(info,info$`patient-id`==14280))$`image-id`)
+library(dplyr)
+info%>%filter(`patient-id`==14280 )%>%select(`study-finding-id`)
+length(unique(info$`patient-id`))
+unique(info$`study-finding-id`)
 ```
-
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+### Combining the data
+```{r}
+dataset<-cbind(info,features)
+class(dataset)
+```
+### Splitting the data
+```{r Splitting}
+library(caTools)
+set.seed(1)
+split<-sample.split(dataset$label,SplitRatio = 0.5)
+table(split)
+train<-dataset[split,]
+table(train$label)
+length(unique(train$`patient-id`))
+test<-dataset[!split,]
+length(unique(test$`patient-id`))
