@@ -53,3 +53,44 @@ table(train$label)
 length(unique(train$`patient-id`))
 test<-dataset[!split,]
 length(unique(test$`patient-id`))
+```
+### Making the model
+```{r Model}
+# Starting by logistic regression
+model_data<-train[,c(1,12:128)]
+model1<-glm(as.factor(label)~.,data = model_data,family = "binomial")
+summary(model1)
+table(train$label,model1$fitted.values>0.2)
+#Making Predictions
+pred_test<-predict(model1,newdata = test,type = "response")
+#Calculating AUC
+library(ROCR)
+ROCRpred<-prediction(pred_test,as.factor(test$label))
+ROCRperf<-performance(ROCRpred,"tpr","fpr")
+ROCRperf<-performance(ROCRpred,"auc",fpr.stop=0.2)
+ROCRperf<-performance(ROCRpred,"auc",fpr.stop=0.3)
+
+ROCRperf
+plot(ROCRperf,colorize=TRUE)
+abline(v = c(0.2,0.3))
+ROCRperf@y.values
+# AUC = 0.93
+# Confusion matrix
+table(test$label,pred_test>=0.2)
+# Cross validating
+library(boot)
+cv.error<-cv.glm(train,glmfit = model1,K = 10)
+```
+## Predicting on test data
+### Importing test data
+```{r Import test}
+test_info<-read.table("Test_Info.txt",header = F,sep = "\t")
+col_test<-c("image-id","patient-id","leftbreast","MLO","x-location","y-location","x-nipple-location","y-nipple-location")
+colnames(test_info)<-col_test
+test_features<-read.table("test_Features.txt",header = F,sep = "\t")
+data_test<-cbind(test_info,test_features)
+data_test$V118<-NULL
+```
+### Making Predictions on Test Data
+```{r Predictions}
+predict_test<-predict(model1,newdata = data)
