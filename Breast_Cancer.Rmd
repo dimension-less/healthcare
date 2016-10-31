@@ -74,23 +74,66 @@ ROCRperf
 plot(ROCRperf,colorize=TRUE)
 abline(v = c(0.2,0.3))
 ROCRperf@y.values
-# AUC = 0.93
+# AUC in the 0.2-0.3 FP range = 0.0914576
 # Confusion matrix
 table(test$label,pred_test>=0.2)
 # Cross validating
 library(boot)
 cv.error<-cv.glm(train,glmfit = model1,K = 10)
 ```
-## Predicting on test data
-### Importing test data
-```{r Import test}
-test_info<-read.table("Test_Info.txt",header = F,sep = "\t")
-col_test<-c("image-id","patient-id","leftbreast","MLO","x-location","y-location","x-nipple-location","y-nipple-location")
-colnames(test_info)<-col_test
-test_features<-read.table("test_Features.txt",header = F,sep = "\t")
-data_test<-cbind(test_info,test_features)
-data_test$V118<-NULL
+### Applying PCA
+```{r PCA}
+pca<-prcomp(model_data[,-1],scale=T)
+pca$
+pc_var<-pca$sdev^2
+pve<-100*pc_var/sum(pc_var)
+library(ggplot2)
+qplot(y=cumsum(pve),x=1:length(pve),geom = c("point","line"))
+# Only taking first 60 component to build the model.
+predictor_space<-cbind(label=model_data$label,pca$x[,1:60])
+predictor_space<-as.data.frame(predictor_space)
+dim(predictor_space)
+# Applying logistic regression 
+model_pca<-glm(as.factor(label)~.,data = predictor_space,family = "binomial")
+table(predictor_space$label,model_pca$fitted.values>0.2)
+# Making predictions
+test_pca<-predict(pca,test)
+test_pca<-as.data.frame(test_pca)
+pred_test_pca<-predict(model_pca,test_pca,type = "response")
+#Apply ROC and calculate AUC 
+ROCRpred<-prediction(pred_test_pca,as.factor(test$label))
+ROCRperf<-performance(ROCRpred,"tpr","fpr")
+ROCRperf_0.2<-performance(ROCRpred,"auc",fpr.stop=0.2)
+ROCRperf_0.3<-performance(ROCRpred,"auc",fpr.stop=0.3)
+ROCRperf_0.2@y.values
+ROCRperf_0.3@y.values
+ROCRperf_0.3@y.values[[1]]-ROCRperf_0.2@y.values[[1]]
+plot(ROCRperf,colorize=TRUE)
+abline(v = c(0.2,0.3))
 ```
-### Making Predictions on Test Data
-```{r Predictions}
-predict_test<-predict(model1,newdata = data)
+### Applyin knn 
+```{r}
+library(class)
+model_knn<-knn(train = predictor_space[,-1],test=test_pca[,1:60],cl = predictor_space$label,k = 1)
+
+table(test$label,model_knn)
+```
+### Applying QDA
+```{r}
+library(MASS)
+model_qda<-qda(label~.,data=model_data)
+model_qda$prior
+model_qda$scaling
+# Making predictions 
+
+pred_test<-predict(model_qda,newdata = test)
+ROCRpred<-prediction(pred_test$posterior[,2],as.factor(test$label))
+ROCRperf<-performance(ROCRpred,"tpr","fpr")
+plot(ROCRperf,colorize=TRUE)
+abline(v = c(0.2,0.3))
+ROCRperf_0.2<-performance(ROCRpred,"auc",fpr.stop=0.2)
+ROCRperf_0.3<-performance(ROCRpred,"auc",fpr.stop=0.3)
+AUC<-(ROCRperf_0.3@y.values[[1]]-ROCRperf_0.2@y.values[[1]])
+hist(model_data$V14)
+summary(model_data$V5)
+```
