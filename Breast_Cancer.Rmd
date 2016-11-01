@@ -42,108 +42,11 @@ unique(info$`study-finding-id`)
 dataset<-cbind(info,features)
 class(dataset)
 ```
-### Splitting the data
-```{r Splitting}
-library(caTools)
-set.seed(1)
-split<-sample.split(dataset$label,SplitRatio = 0.5)
-table(split)
-train<-dataset[split,]
-table(train$label)
-length(unique(train$`patient-id`))
-test<-dataset[!split,]
-length(unique(test$`patient-id`))
-```
-### Making the model
-```{r Model}
-# Starting by logistic regression
-model_data<-train[,c(1,12:128)]
-model1<-glm(as.factor(label)~.,data = model_data,family = "binomial")
-summary(model1)
-table(train$label,model1$fitted.values>0.2)
-#Making Predictions
-pred_test<-predict(model1,newdata = test,type = "response")
-#Calculating AUC
-library(ROCR)
-ROCRpred<-prediction(pred_test,as.factor(test$label))
-ROCRperf<-performance(ROCRpred,"tpr","fpr")
-ROCRperf<-performance(ROCRpred,"auc",fpr.stop=0.2)
-ROCRperf<-performance(ROCRpred,"auc",fpr.stop=0.3)
-
-ROCRperf
-plot(ROCRperf,colorize=TRUE)
-abline(v = c(0.2,0.3))
-ROCRperf@y.values
-# AUC in the 0.2-0.3 FP range = 0.0914576
-# Confusion matrix
-table(test$label,pred_test>=0.2)
-# Cross validating
-library(boot)
-cv.error<-cv.glm(train,glmfit = model1,K = 10)
-```
-### Applying PCA
-```{r PCA}
-pca<-prcomp(model_data[,-1],scale=T)
-pca$
-pc_var<-pca$sdev^2
-pve<-100*pc_var/sum(pc_var)
-library(ggplot2)
-qplot(y=cumsum(pve),x=1:length(pve),geom = c("point","line"))
-# Only taking first 60 component to build the model.
-predictor_space<-cbind(label=model_data$label,pca$x[,1:60])
-predictor_space<-as.data.frame(predictor_space)
-dim(predictor_space)
-# Applying logistic regression 
-model_pca<-glm(as.factor(label)~.,data = predictor_space,family = "binomial")
-table(predictor_space$label,model_pca$fitted.values>0.2)
-# Making predictions
-test_pca<-predict(pca,test)
-test_pca<-as.data.frame(test_pca)
-pred_test_pca<-predict(model_pca,test_pca,type = "response")
-#Apply ROC and calculate AUC 
-ROCRpred<-prediction(pred_test_pca,as.factor(test$label))
-ROCRperf<-performance(ROCRpred,"tpr","fpr")
-ROCRperf_0.2<-performance(ROCRpred,"auc",fpr.stop=0.2)
-ROCRperf_0.3<-performance(ROCRpred,"auc",fpr.stop=0.3)
-ROCRperf_0.2@y.values
-ROCRperf_0.3@y.values
-ROCRperf_0.3@y.values[[1]]-ROCRperf_0.2@y.values[[1]]
-plot(ROCRperf,colorize=TRUE)
-abline(v = c(0.2,0.3))
-```
-### Applyin knn 
-```{r}
-library(class)
-model_knn<-knn(train = predictor_space[,-1],test=test_pca[,1:60],cl = predictor_space$label,k = 1)
-
-table(test$label,model_knn)
-```
-### Applying QDA
-```{r}
-library(MASS)
-model_qda<-qda(label~.,data=model_data)
-model_qda$prior
-model_qda$scaling
-# Making predictions 
-
-pred_test<-predict(model_qda,newdata = test)
-ROCRpred<-prediction(pred_test$posterior[,2],as.factor(test$label))
-ROCRperf<-performance(ROCRpred,"tpr","fpr")
-plot(ROCRperf,colorize=TRUE)
-abline(v = c(0.2,0.3))
-ROCRperf_0.2<-performance(ROCRpred,"auc",fpr.stop=0.2)
-ROCRperf_0.3<-performance(ROCRpred,"auc",fpr.stop=0.3)
-AUC<-(ROCRperf_0.3@y.values[[1]]-ROCRperf_0.2@y.values[[1]])
-hist(model_data$V14)
-summary(model_data$V5)
-```
-
 ##Spliting the based on labels
 
 <font size="3" face="verdana" color="blue"> We will split the dataset in such a way that the half of the melignant patient will be in the training dataset and half would be in the test dataset </font>
 
 ```{r Split_based_on_positive_M}
-
 #Spliting the Patients in two part as Positive Maligant and Negative Melignant
 length(unique(dataset$`patient-id`))
 positive_malignant <- unique(subset(dataset , label == 1)$`patient-id`)
@@ -156,7 +59,7 @@ length(unique(negative_malignant))
 set.seed(12)
 library(caTools)
 train_positive_malignant_v <- sample.split(positive_malignant , SplitRatio = 0.5)
-train_negative_malignant_v <- sample.split(negative_malignant, , SplitRatio = 0.5)
+train_negative_malignant_v <- sample.split(negative_malignant, SplitRatio = 0.5)
 
 train_positive_malignant <- positive_malignant[train_positive_malignant_v==T]
 test_positive_malignant <- positive_malignant[train_positive_malignant_v==F]
@@ -195,10 +98,130 @@ test_dataset <- merge(dataset,test_patient,by = "patient-id")
 length(unique(subset(test_dataset, label == 1 )$`patient-id`))
 length(unique(test_dataset$`patient-id`))
 table(test_dataset$label)
+train<-train_dataset
+test<-test_dataset
 ```
 
-#Modeling on the new Splited data
+### Making the model
+```{r Model}
+# Starting by logistic regression
+model_data<-train[,c(2,12:128)]
+model1<-glm(as.factor(label)~.,data = model_data,family = "binomial")
+summary(model1)
+table(train$label,model1$fitted.values>0.2)
+#Making Predictions
+pred_test<-predict(model1,newdata = test,type = "response")
+#Calculating AUC
+library(ROCR)
+ROCRpred<-prediction(pred_test,as.factor(test$label))
+ROCRperf<-performance(ROCRpred,"tpr","fpr")
+plot(ROCRperf,colorize=TRUE)
+ROCRperf_0.2<-performance(ROCRpred,"auc",fpr.stop=0.2)
+ROCRperf_0.3<-performance(ROCRpred,"auc",fpr.stop=0.3)
+AUC<-ROCRperf_0.3@y.values[[1]]-ROCRperf_0.2@y.values[[1]]
+ROCRperf@y.values
+# AUC in the 0.2-0.3 FP range = 0.091735
+# Confusion matrix
+table(test$label,pred_test>=0.2)
+# Cross validating
 
-```{r Modeling_on_new_Trained}
+```
+### Applying PCA
+```{r PCA}
+pca<-prcomp(model_data[,-1],scale=T)
+pca$
+pc_var<-pca$sdev^2
+pve<-100*pc_var/sum(pc_var)
+library(ggplot2)
+qplot(y=cumsum(pve),x=1:length(pve),geom = c("point","line"))
+# Only taking first 60 component to build the model.
+predictor_space<-cbind(label=model_data$label,pca$x[,1:60])
+predictor_space<-as.data.frame(predictor_space)
+dim(predictor_space)
+# Applying logistic regression 
+model_pca<-glm(as.factor(label)~.,data = predictor_space,family = "binomial")
+table(predictor_space$label,model_pca$fitted.values>0.2)
+# Making predictions
+test_pca<-predict(pca,test)
+test_pca<-as.data.frame(test_pca)
+pred_test_pca<-predict(model_pca,test_pca,type = "response")
+#Apply ROC and calculate AUC 
+ROCRpred<-prediction(pred_test_pca,as.factor(test$label))
+ROCRperf<-performance(ROCRpred,"tpr","fpr")
+ROCRperf_0.2<-performance(ROCRpred,"auc",fpr.stop=0.2)
+ROCRperf_0.3<-performance(ROCRpred,"auc",fpr.stop=0.3)
+ROCRperf_0.2@y.values
+ROCRperf_0.3@y.values
+AUC_PCA<-ROCRperf_0.3@y.values[[1]]-ROCRperf_0.2@y.values[[1]]
+plot(ROCRperf,colorize=TRUE)
+abline(v = c(0.2,0.3))
+```
+### Applyin knn 
+```{r}
+library(class)
+model_knn<-knn(train = predictor_space[,-1],test=test_pca[,1:60],cl = predictor_space$label,k = 1)
 
+table(test$label,model_knn)
+```
+### Applying QDA
+```{r}
+library(MASS)
+model_qda<-qda(label~.,data=model_data)
+model_qda$prior
+model_qda$scaling
+# Making predictions 
 
+pred_test<-predict(model_qda,newdata = test)
+ROCRpred<-prediction(pred_test$posterior[,2],as.factor(test$label))
+ROCRperf<-performance(ROCRpred,"tpr","fpr")
+plot(ROCRperf,colorize=TRUE)
+abline(v = c(0.2,0.3))
+ROCRperf_0.2<-performance(ROCRpred,"auc",fpr.stop=0.2)
+ROCRperf_0.3<-performance(ROCRpred,"auc",fpr.stop=0.3)
+AUC<-(ROCRperf_0.3@y.values[[1]]-ROCRperf_0.2@y.values[[1]])
+hist(model_data$V14)
+summary(model_data$V5)
+```
+
+# Computing AUC using Cortana function 
+```{r}
+compute_auc <- function (dataset) 
+{
+  FA_low <- 0.2
+  FA_high <- 0.3
+
+  colnames(dataset) <- c("Y","Pred","PatientID")
+  n_positive_patients <- length(unique(dataset$PatientID[dataset$Y==1]))
+  n_patients <- length(unique(dataset$PatientID))
+  n_images <- 4*n_patients
+
+  data <- dataset[order(-dataset$Pred),]
+  n_points <- dim(data)[1]+1
+  num_FA <- vector(mode="numeric",length=n_points)
+  num_D <- vector(mode="numeric",length=n_points)
+  num_PatientsDetected <- vector(mode="numeric",length=n_points)
+  patients_detected_till_now <- vector(mode="numeric",length=0)
+  for (i in 2:n_points) {
+    if (data$Y[i-1]==1) {        
+      num_FA[i] <- num_FA[i-1]
+      patients_detected_till_now <- union(patients_detected_till_now, data$PatientID[i-1])
+      num_PatientsDetected[i] <- length(patients_detected_till_now)
+     }
+     else {
+       num_PatientsDetected[i] <- num_PatientsDetected[i-1]       
+       num_FA[i] <- num_FA[i-1]+1
+    }
+  }
+
+  FA_per_image <- num_FA / n_images
+  Pd_patient_wise <- num_PatientsDetected / n_positive_patients
+
+  index1 <- min(which(FA_per_image>=FA_low))
+  index2 <- max(which(FA_per_image<=FA_high))
+
+  AUC <- Pd_patient_wise[index1:(index2-1)] %*% (FA_per_image[(index1+1):index2] - FA_per_image[index1:(index2-1)])
+  return(AUC)
+}
+df_auc<-as.data.frame(cbind(test$label,pred_test,test$`patient-id`))
+compute_auc(df_auc)
+```
