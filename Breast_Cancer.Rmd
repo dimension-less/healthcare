@@ -42,22 +42,70 @@ unique(info$`study-finding-id`)
 dataset<-cbind(info,features)
 class(dataset)
 ```
-### Splitting the data
-```{r Splitting}
+##Spliting the based on labels
+
+<font size="3" face="verdana" color="blue"> We will split the dataset in such a way that the half of the melignant patient will be in the training dataset and half would be in the test dataset </font>
+
+```{r Split_based_on_positive_M}
+#Spliting the Patients in two part as Positive Maligant and Negative Melignant
+length(unique(dataset$`patient-id`))
+positive_malignant <- unique(subset(dataset , label == 1)$`patient-id`)
+length(positive_malignant)
+logic<-dataset$`patient-id` %in% positive_malignant
+negative_malignant<-unique(dataset$`patient-id`[logic==FALSE])
+length(unique(negative_malignant))
+
+#Spliting the Postive Malignant and Negative Malignant Patients in two set one for Test and Traing
+set.seed(12)
 library(caTools)
-set.seed(1)
-split<-sample.split(dataset$label,SplitRatio = 0.5)
-table(split)
-train<-dataset[split,]
-table(train$label)
-length(unique(train$`patient-id`))
-test<-dataset[!split,]
-length(unique(test$`patient-id`))
+train_positive_malignant_v <- sample.split(positive_malignant , SplitRatio = 0.5)
+train_negative_malignant_v <- sample.split(negative_malignant, SplitRatio = 0.5)
+
+train_positive_malignant <- positive_malignant[train_positive_malignant_v==T]
+test_positive_malignant <- positive_malignant[train_positive_malignant_v==F]
+length(train_positive_malignant)
+length(test_positive_malignant)
+
+train_negative_malignant <- negative_malignant[train_negative_malignant_v==T]
+test_negative_malignant <- negative_malignant[train_negative_malignant_v==F]
+length(train_negative_malignant)
+length(test_negative_malignant)
+
+# Combining the Patients with Positive Malignant and Negative Malignant for Training Data Set
+train_patient <- c(train_positive_malignant,train_negative_malignant)
+
+length(unique(train_patient))
+# Coercion to data frame to marge with the previous data
+train_patient <- as.data.frame(train_patient)
+names(train_patient) <- "patient-id"
+length(train_patient$`patient-id`)
+#Merging the data based on patient id to prepare the train data
+train_dataset <- merge(dataset,train_patient,by = "patient-id")
+length(unique(subset(train_dataset, label == 1 )$`patient-id`))
+length(unique(train_dataset$`patient-id`))
+table(train_dataset$label)
+
+# Combining the Patients with Positive Malignant and Negative Malignant for Test Data Set
+test_patient <- c(test_positive_malignant,test_negative_malignant)
+
+# Coercion to data frame to marge with the previous data
+test_patient <- as.data.frame(test_patient)
+names(test_patient) <- "patient-id"
+length(unique(test_patient$`patient-id`))
+
+#Merging the data based on patient id to prepare the train data
+test_dataset <- merge(dataset,test_patient,by = "patient-id")
+length(unique(subset(test_dataset, label == 1 )$`patient-id`))
+length(unique(test_dataset$`patient-id`))
+table(test_dataset$label)
+train<-train_dataset
+test<-test_dataset
 ```
+
 ### Making the model
 ```{r Model}
 # Starting by logistic regression
-model_data<-train[,c(1,12:128)]
+model_data<-train[,c(2,12:128)]
 model1<-glm(as.factor(label)~.,data = model_data,family = "binomial")
 summary(model1)
 table(train$label,model1$fitted.values>0.2)
@@ -67,19 +115,16 @@ pred_test<-predict(model1,newdata = test,type = "response")
 library(ROCR)
 ROCRpred<-prediction(pred_test,as.factor(test$label))
 ROCRperf<-performance(ROCRpred,"tpr","fpr")
-ROCRperf<-performance(ROCRpred,"auc",fpr.stop=0.2)
-ROCRperf<-performance(ROCRpred,"auc",fpr.stop=0.3)
-
-ROCRperf
 plot(ROCRperf,colorize=TRUE)
-abline(v = c(0.2,0.3))
+ROCRperf_0.2<-performance(ROCRpred,"auc",fpr.stop=0.2)
+ROCRperf_0.3<-performance(ROCRpred,"auc",fpr.stop=0.3)
+AUC<-ROCRperf_0.3@y.values[[1]]-ROCRperf_0.2@y.values[[1]]
 ROCRperf@y.values
-# AUC in the 0.2-0.3 FP range = 0.0914576
+# AUC in the 0.2-0.3 FP range = 0.091735
 # Confusion matrix
 table(test$label,pred_test>=0.2)
 # Cross validating
-library(boot)
-cv.error<-cv.glm(train,glmfit = model1,K = 10)
+
 ```
 ### Applying PCA
 ```{r PCA}
@@ -107,7 +152,7 @@ ROCRperf_0.2<-performance(ROCRpred,"auc",fpr.stop=0.2)
 ROCRperf_0.3<-performance(ROCRpred,"auc",fpr.stop=0.3)
 ROCRperf_0.2@y.values
 ROCRperf_0.3@y.values
-ROCRperf_0.3@y.values[[1]]-ROCRperf_0.2@y.values[[1]]
+AUC_PCA<-ROCRperf_0.3@y.values[[1]]-ROCRperf_0.2@y.values[[1]]
 plot(ROCRperf,colorize=TRUE)
 abline(v = c(0.2,0.3))
 ```
@@ -138,64 +183,45 @@ hist(model_data$V14)
 summary(model_data$V5)
 ```
 
-##Spliting the based on labels
+# Computing AUC using Cortana function 
+```{r}
+compute_auc <- function (dataset) 
+{
+  FA_low <- 0.2
+  FA_high <- 0.3
 
-<font size="3" face="verdana" color="blue"> We will split the dataset in such a way that the half of the melignant patient will be in the training dataset and half would be in the test dataset </font>
+  colnames(dataset) <- c("Y","Pred","PatientID")
+  n_positive_patients <- length(unique(dataset$PatientID[dataset$Y==1]))
+  n_patients <- length(unique(dataset$PatientID))
+  n_images <- 4*n_patients
 
-```{r Split_based_on_positive_M}
-dataset
-#Spliting the Patients in two part as Positive Maligant and Negative Melignant
-positive_malignant <- unique(subset(dataset , label == 1)$`patient-id`)
-length(positive_malignant)
-negative_malignant <- unique(subset(dataset , label == -1)$`patient-id`)
-length(negative_malignant)
+  data <- dataset[order(-dataset$Pred),]
+  n_points <- dim(data)[1]+1
+  num_FA <- vector(mode="numeric",length=n_points)
+  num_D <- vector(mode="numeric",length=n_points)
+  num_PatientsDetected <- vector(mode="numeric",length=n_points)
+  patients_detected_till_now <- vector(mode="numeric",length=0)
+  for (i in 2:n_points) {
+    if (data$Y[i-1]==1) {        
+      num_FA[i] <- num_FA[i-1]
+      patients_detected_till_now <- union(patients_detected_till_now, data$PatientID[i-1])
+      num_PatientsDetected[i] <- length(patients_detected_till_now)
+     }
+     else {
+       num_PatientsDetected[i] <- num_PatientsDetected[i-1]       
+       num_FA[i] <- num_FA[i-1]+1
+    }
+  }
 
-#Spliting the Postive Malignant and Negative Malignant Patients in two set one for Test and Traing
-set.seed(12)
-train_positive_malignant_v <- sample.split(positive_malignant , SplitRatio = 0.5)
-train_negative_malignant_v <- sample.split(negative_malignant, , SplitRatio = 0.5)
+  FA_per_image <- num_FA / n_images
+  Pd_patient_wise <- num_PatientsDetected / n_positive_patients
 
-train_positive_malignant <- positive_malignant[train_positive_malignant_v]
-test_positive_malignant <- positive_malignant[train_positive_malignant_v==F]
-length(train_positive_malignant)
-length(test_positive_malignant)
+  index1 <- min(which(FA_per_image>=FA_low))
+  index2 <- max(which(FA_per_image<=FA_high))
 
-train_negative_malignant <- negative_malignant[train_negative_malignant_v]
-test_negative_malignant <- negative_malignant[train_negative_malignant_v==F]
-length(train_negative_malignant)
-length(test_negative_malignant)
-
-# Combining the Patients with Positive Malignant and Negative Malignant for Training Data Set
-train_patient <- unique(c(train_positive_malignant,train_negative_malignant))
-
-length(unique(train_patient))
-# Coercion to data frame to marge with the previous data
-train_patient <- as.data.frame(train_patient)
-names(train_patient) <- "patient-id"
-length(unique(train_patient$`patient-id`))
-#Marging the data based on patient id to prepare the train data
-train_dataset <- merge(dataset,train_patient,by = "patient-id")
-length(unique(subset(train_dataset, label == 1 )$`patient-id`))
-length(unique(train_dataset$`patient-id`))
-table(train_dataset$label)
-
-# Combining the Patients with Positive Malignant and Negative Malignant for Test Data Set
-test_patient <- unique(c(test_positive_malignant,test_negative_malignant))
-
-# Coercion to data frame to marge with the previous data
-test_patient <- as.data.frame(test_patient)
-names(test_patient) <- "patient-id"
-length(unique(test_patient$`patient-id`))
-
-#Marging the data based on patient id to prepare the train data
-test_dataset <- merge(dataset,test_patient,by = "patient-id")
-length(unique(subset(test_dataset, label == 1 )$`patient-id`))
-length(unique(test_dataset$`patient-id`))
-table(test_dataset$label)
+  AUC <- Pd_patient_wise[index1:(index2-1)] %*% (FA_per_image[(index1+1):index2] - FA_per_image[index1:(index2-1)])
+  return(AUC)
+}
+df_auc<-as.data.frame(cbind(test$label,pred_test,test$`patient-id`))
+compute_auc(df_auc)
 ```
-
-#Modeling on the new Splited data
-
-```{r Modeling_on_new_Trained}
-
-
