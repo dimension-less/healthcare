@@ -137,3 +137,65 @@ AUC<-(ROCRperf_0.3@y.values[[1]]-ROCRperf_0.2@y.values[[1]])
 hist(model_data$V14)
 summary(model_data$V5)
 ```
+
+##Spliting the based on labels
+
+<font size="3" face="verdana" color="blue"> We will split the dataset in such a way that the half of the melignant patient will be in the training dataset and half would be in the test dataset </font>
+
+```{r Split_based_on_positive_M}
+dataset
+#Spliting the Patients in two part as Positive Maligant and Negative Melignant
+positive_malignant <- unique(subset(dataset , label == 1)$`patient-id`)
+length(positive_malignant)
+negative_malignant <- unique(subset(dataset , label == -1)$`patient-id`)
+length(negative_malignant)
+
+#Spliting the Postive Malignant and Negative Malignant Patients in two set one for Test and Traing
+set.seed(12)
+train_positive_malignant_v <- sample.split(positive_malignant , SplitRatio = 0.5)
+train_negative_malignant_v <- sample.split(negative_malignant, , SplitRatio = 0.5)
+
+train_positive_malignant <- positive_malignant[train_positive_malignant_v]
+test_positive_malignant <- positive_malignant[train_positive_malignant_v==F]
+length(train_positive_malignant)
+length(test_positive_malignant)
+
+train_negative_malignant <- negative_malignant[train_negative_malignant_v]
+test_negative_malignant <- negative_malignant[train_negative_malignant_v==F]
+length(train_negative_malignant)
+length(test_negative_malignant)
+
+# Combining the Patients with Positive Malignant and Negative Malignant for Training Data Set
+train_patient <- unique(c(train_positive_malignant,train_negative_malignant))
+
+length(unique(train_patient))
+# Coercion to data frame to marge with the previous data
+train_patient <- as.data.frame(train_patient)
+names(train_patient) <- "patient-id"
+length(unique(train_patient$`patient-id`))
+#Marging the data based on patient id to prepare the train data
+train_dataset <- merge(dataset,train_patient,by = "patient-id")
+length(unique(subset(train_dataset, label == 1 )$`patient-id`))
+length(unique(train_dataset$`patient-id`))
+table(train_dataset$label)
+
+# Combining the Patients with Positive Malignant and Negative Malignant for Test Data Set
+test_patient <- unique(c(test_positive_malignant,test_negative_malignant))
+
+# Coercion to data frame to marge with the previous data
+test_patient <- as.data.frame(test_patient)
+names(test_patient) <- "patient-id"
+length(unique(test_patient$`patient-id`))
+
+#Marging the data based on patient id to prepare the train data
+test_dataset <- merge(dataset,test_patient,by = "patient-id")
+length(unique(subset(test_dataset, label == 1 )$`patient-id`))
+length(unique(test_dataset$`patient-id`))
+table(test_dataset$label)
+```
+
+#Modeling on the new Splited data
+
+```{r Modeling_on_new_Trained}
+
+
